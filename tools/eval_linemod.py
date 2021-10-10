@@ -29,8 +29,10 @@ parser.add_argument('--refine_model', type=str, default = '',  help='resume Pose
 opt = parser.parse_args()
 
 num_objects = 13
+# num_objects = 1
 objlist = [1, 2, 4, 5, 6, 8, 9, 10, 11, 12, 13, 14, 15]
-num_points = 500
+# objlist = [1]
+num_points = 2000
 iteration = 4
 bs = 1
 dataset_config_dir = 'datasets/linemod/dataset_config'
@@ -47,7 +49,7 @@ estimator.eval()
 refiner.eval()
 
 testdataset = PoseDataset_linemod('eval', num_points, False, opt.dataset_root, 0.0, True)
-testdataloader = torch.utils.data.DataLoader(testdataset, batch_size=1, shuffle=False, num_workers=10)
+testdataloader = torch.utils.data.DataLoader(testdataset, batch_size=1, shuffle=False, num_workers=0)
 
 sym_list = testdataset.get_sym_list()
 num_points_mesh = testdataset.get_num_points_mesh()
@@ -65,6 +67,34 @@ success_count = [0 for i in range(num_objects)]
 num_count = [0 for i in range(num_objects)]
 fw = open('{0}/eval_result_logs.txt'.format(output_result_dir), 'w')
 
+import ipdb
+ipdb.set_trace()
+from PIL import Image
+import cv2
+
+
+def project_3d_2d(p3d, intrinsic_matrix=np.array([[572.4114, 0., 325.2611],[0., 573.57043, 242.04899],[0., 0., 1.]])):
+    p2d = np.dot(p3d, intrinsic_matrix.T)
+    p2d_3 = p2d[:, 2]
+    p2d_3[np.where(p2d_3 < 1e-8)] = 1.0
+    p2d[:, 2] = p2d_3
+    p2d = np.around((p2d[:, :2] / p2d[:, 2:])).astype(np.int32)
+    return p2d
+
+# img: 2d points with rgb, 480 x 640 x 3
+def draw_p2ds(img, p2ds, color=(255, 0, 0)):
+    r = 1
+    h, w = img.shape[0], img.shape[1]
+    for pt_2d in p2ds:
+        pt_2d[0] = np.clip(pt_2d[0], 0, w)
+        pt_2d[1] = np.clip(pt_2d[1], 0, h)
+        img = cv2.circle(
+            img, (pt_2d[0], pt_2d[1]), r, color, -1
+        )
+    return img # next, save img as .png
+
+last_item = 0
+last_item_id = 0
 for i, data in enumerate(testdataloader, 0):
     points, choose, img, target, model_points, idx = data
     if len(points.size()) == 2:
@@ -120,6 +150,24 @@ for i, data in enumerate(testdataloader, 0):
     pred = np.dot(model_points, my_r.T) + my_t
     target = target[0].cpu().detach().numpy()
 
+    # pts = points.cpu().numpy().astype("float32")[0]
+    # trans_pts = np.dot(pts, my_r.T) + my_t[:3]
+
+    tmp_img = np.array(Image.open(testdataset.list_rgb[i])) # need to change tmp_img[0][0][0] and tmp_img[0][0][2]
+    tmp_img = np.flip(tmp_img, 2).copy()
+
+    pts_2d = project_3d_2d(pred)
+    new_img = draw_p2ds(tmp_img, pts_2d)
+    
+    if idx[0].item() != last_item:
+        last_item = idx[0].item()
+        last_item_id = i
+    cv2.imwrite(f"eval_vis/{idx[0].item()}/{i - last_item_id}.jpg", new_img)
+    
+    if idx[0].item() > 1:
+        break
+    
+
     if idx[0].item() in sym_list:
         pred = torch.from_numpy(pred.astype(np.float32)).cuda().transpose(1, 0).contiguous()
         target = torch.from_numpy(target.astype(np.float32)).cuda().transpose(1, 0).contiguous()
@@ -131,11 +179,11 @@ for i, data in enumerate(testdataloader, 0):
 
     if dis < diameter[idx[0].item()]:
         success_count[idx[0].item()] += 1
-        print('No.{0} Pass! Distance: {1}'.format(i, dis))
-        fw.write('No.{0} Pass! Distance: {1}\n'.format(i, dis))
+        print('Item {0} No.{1} Pass! Distance: {2}'.format(idx[0].item(), i - last_item_id, dis))
+        fw.write('Item {0} No.{1} Pass! Distance: {2}\n'.format(idx[0].item(), i - last_item_id, dis))
     else:
-        print('No.{0} NOT Pass! Distance: {1}'.format(i, dis))
-        fw.write('No.{0} NOT Pass! Distance: {1}\n'.format(i, dis))
+        print('Item {0} No.{1} NOT Pass! Distance: {2}'.format(idx[0].item(), i - last_item_id, dis))
+        fw.write('Item {0} No.{1} NOT Pass! Distance: {2}\n'.format(idx[0].item(), i - last_item_id, dis))
     num_count[idx[0].item()] += 1
 
 for i in range(num_objects):
