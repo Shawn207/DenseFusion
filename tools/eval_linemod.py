@@ -33,7 +33,7 @@ num_objects = 13
 objlist = [1, 2, 4, 5, 6, 8, 9, 10, 11, 12, 13, 14, 15]
 # objlist = [1]
 num_points = 2000
-iteration = 4
+iteration = 10
 bs = 1
 dataset_config_dir = 'datasets/linemod/dataset_config'
 output_result_dir = 'experiments/eval_result/linemod'
@@ -70,6 +70,7 @@ fw = open('{0}/eval_result_logs.txt'.format(output_result_dir), 'w')
 import ipdb
 ipdb.set_trace()
 from PIL import Image
+import time
 import cv2
 
 
@@ -95,6 +96,7 @@ def draw_p2ds(img, p2ds, color=(255, 0, 0)):
 
 last_item = 0
 last_item_id = 0
+t_start = time.time()
 for i, data in enumerate(testdataloader, 0):
     points, choose, img, target, model_points, idx = data
     if len(points.size()) == 2:
@@ -186,9 +188,14 @@ for i, data in enumerate(testdataloader, 0):
         fw.write('Item {0} No.{1} NOT Pass! Distance: {2}\n'.format(idx[0].item(), i - last_item_id, dis))
     num_count[idx[0].item()] += 1
 
+t_end = time.time()
+
 for i in range(num_objects):
+    if num_count[i] <= 0:
+        continue
     print('Object {0} success rate: {1}'.format(objlist[i], float(success_count[i]) / num_count[i]))
     fw.write('Object {0} success rate: {1}\n'.format(objlist[i], float(success_count[i]) / num_count[i]))
 print('ALL success rate: {0}'.format(float(sum(success_count)) / sum(num_count)))
 fw.write('ALL success rate: {0}\n'.format(float(sum(success_count)) / sum(num_count)))
+fw.write(f'Evarage run time: {(t_end - t_start) / sum(num_count)}')
 fw.close()
