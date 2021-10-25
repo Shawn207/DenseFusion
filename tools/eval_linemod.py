@@ -103,6 +103,12 @@ for i, data in enumerate(testdataloader, 0):
         print('No.{0} NOT Pass! Lost detection!'.format(i))
         fw.write('No.{0} NOT Pass! Lost detection!\n'.format(i))
         continue
+    # points: torch.Size([1, 2000, 3])
+    # choose: torch.Size([1, 1, 2000])
+    # img: torch.Size([1, 3, 80, 80])
+    # target: torch.Size([1, 500, 3])
+    # model_points: torch.Size([1, 500, 3])
+    # idx: torch.Size([1, 1])
     points, choose, img, target, model_points, idx = Variable(points).cuda(), \
                                                      Variable(choose).cuda(), \
                                                      Variable(img).cuda(), \

@@ -19,6 +19,7 @@ import scipy.misc
 import scipy.io as scio
 import yaml
 import cv2
+import open3d as o3d
 
 train_obj_num = 20
 test_obj_num = 10
@@ -40,29 +41,32 @@ class PoseDataset(data.Dataset):
         self.refine = refine
         self.obj_list = []
 
-        if self.mode == 'train':
-            with open(f"{self.root}/train_list_sort.txt", 'r') as f:
-                for _ in range(len(train_obj_num)):
-                    self.obj_list.append(int(f.readline().strip()))
-        else:
-            with open(f"{self.root}/test_list_sort.txt", 'r') as f:
-                for _ in range(len(test_obj_num)):
+        # if self.mode == 'train':
+        #     with open(f"{self.root}/train_list_sort.txt", 'r') as f:
+        #         for _ in range(train_obj_num):
+        #             self.obj_list.append(int(f.readline().strip()))
+        # else:
+        #     with open(f"{self.root}/test_list_sort.txt", 'r') as f:
+        #         for _ in range(test_obj_num):
+        #             self.obj_list.append(int(f.readline().strip()))
+        with open(f"{self.root}/train_list_sort.txt", 'r') as f:
+                for _ in range(train_obj_num):
                     self.obj_list.append(int(f.readline().strip()))
         
         image_idx = [i for i in range(100)]
 
         item_count = 0
         # train: obj up to 110, test: obj up to 40
-        for item in self.objlist:
+        for item in self.obj_list:
             poses = {}
             for idx in image_idx:
                 item_count += 1
-                # if self.mode == 'test' and item_count % 10 != 0:
-                #     continue
+                if self.mode == 'test' and item_count % 10 != 0:
+                    continue
 
                 self.list_rgb.append(f'{self.root}/train/exr/{item}/clr/{idx}.png')
                 self.list_depth.append(f'{self.root}/train/depth/{item}/{idx}.png')
-                self.list_label.append(f'{self.root}/train/exr/{item}mask/{idx}.png')
+                self.list_label.append(f'{self.root}/train/exr/{item}/mask/{idx}.png')
                 
                 self.list_obj.append(item)
                 self.list_rank.append(idx)
@@ -90,8 +94,8 @@ class PoseDataset(data.Dataset):
         self.trancolor = transforms.ColorJitter(0.2, 0.2, 0.2, 0.05)
         self.norm = transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
         self.border_list = [-1, 40, 80, 120, 160, 200, 240, 280, 320, 360, 400, 440, 480, 520, 560, 600, 640, 680]
-        self.num_pt_mesh_large = 500
-        self.num_pt_mesh_small = 500
+        self.num_pt_mesh_large = 1000
+        self.num_pt_mesh_small = 1000
         self.symmetry_obj_idx = self.obj_list.copy()
 
     def __getitem__(self, index):
@@ -174,7 +178,10 @@ class PoseDataset(data.Dataset):
         #    fw.write('{0} {1} {2}\n'.format(it[0], it[1], it[2]))
         #fw.close()
 
-        model_points = self.pt[obj] / 1000.0
+
+        # model_points = self.pt[obj] / 1000.0
+        pcd = o3d.io.read_point_cloud(self.list_pcd[index]) 
+        model_points = np.asarray(pcd.points) 
         dellist = [j for j in range(0, len(model_points))]
         dellist = random.sample(dellist, len(model_points) - self.num_pt_mesh_small)
         model_points = np.delete(model_points, dellist, axis=0)
@@ -184,13 +191,14 @@ class PoseDataset(data.Dataset):
         #    fw.write('{0} {1} {2}\n'.format(it[0], it[1], it[2]))
         #fw.close()
 
-        target = np.dot(model_points, target_r.T)
-        if self.add_noise:
-            target = np.add(target, target_t / 1000.0 + add_t)
-            out_t = target_t / 1000.0 + add_t
-        else:
-            target = np.add(target, target_t / 1000.0)
-            out_t = target_t / 1000.0
+        target = model_points # these should be transformed points already
+        # target = np.dot(model_points, target_r.T)
+        # if self.add_noise:
+        #     target = np.add(target, target_t / 1000.0 + add_t)
+        #     out_t = target_t / 1000.0 + add_t
+        # else:
+        #     target = np.add(target, target_t / 1000.0)
+        #     out_t = target_t / 1000.0
 
         #fw = open('evaluation_result/{0}_tar.xyz'.format(index), 'w')
         #for it in target:
@@ -202,7 +210,7 @@ class PoseDataset(data.Dataset):
                self.norm(torch.from_numpy(img_masked.astype(np.float32))), \
                torch.from_numpy(target.astype(np.float32)), \
                torch.from_numpy(model_points.astype(np.float32)), \
-               torch.LongTensor([self.objlist.index(obj)])
+               torch.LongTensor([self.obj_list.index(obj)])
 
     def __len__(self):
         return self.length

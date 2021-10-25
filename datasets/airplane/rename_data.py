@@ -78,6 +78,15 @@ def generate_mask(exrfile, jpgfile):
     Image.merge("RGB", rgb8).save(jpgfile+'.jpg') 
     cv2.imwrite(jpgfile+'.png', 255 * np.array(Image.open(jpgfile+'.jpg'))) 
 
+# used for generating mask
+# for i in range(150): 
+#     os.chdir(f"{i}") 
+#     if not os.path.exists("mask"): 
+#         os.mkdir("mask") 
+#     for j in range(100): 
+#         generate_mask(f"{origin_pwd}/{i}/{j}.exr", f"{origin_pwd}/{i}/mask/{j}") 
+#     os.chdir(origin_pwd) 
+
 # ChangeCompleteFileName('complete')
 
 
