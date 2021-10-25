@@ -19,10 +19,10 @@ import scipy.misc
 import scipy.io as scio
 import yaml
 import cv2
-import open3d as o3d
+import open3d as o3d ## OPEN3D ??
 
-train_obj_num = 20
-test_obj_num = 10
+train_obj_num = 20## we use 20 obj from train_list_sort for training
+test_obj_num = 10##
 
 class PoseDataset(data.Dataset):
     def __init__(self, mode, num, add_noise, root, noise_trans, refine):
@@ -49,33 +49,34 @@ class PoseDataset(data.Dataset):
         #     with open(f"{self.root}/test_list_sort.txt", 'r') as f:
         #         for _ in range(test_obj_num):
         #             self.obj_list.append(int(f.readline().strip()))
-        with open(f"{self.root}/train_list_sort.txt", 'r') as f:
+        # load the index of file from train_list_sort 
+        with open(f"{self.root}/train_list_sort.txt", 'r') as f: ### f-string
                 for _ in range(train_obj_num):
-                    self.obj_list.append(int(f.readline().strip()))
+                    self.obj_list.append(int(f.readline().strip()))## remove spaces around the index string
         
         image_idx = [i for i in range(100)]
 
         item_count = 0
-        # train: obj up to 110, test: obj up to 40
-        for item in self.obj_list:
+        # train: obj up to 110, test: obj up to 40   
+        for item in self.obj_list: ## 20 objects from 100 images(or folders?)
             poses = {}
             for idx in image_idx:
                 item_count += 1
                 if self.mode == 'test' and item_count % 10 != 0:
                     continue
 
-                self.list_rgb.append(f'{self.root}/train/exr/{item}/clr/{idx}.png')
-                self.list_depth.append(f'{self.root}/train/depth/{item}/{idx}.png')
-                self.list_label.append(f'{self.root}/train/exr/{item}/mask/{idx}.png')
+                self.list_rgb.append(f'{self.root}/train/exr/{item}/clr/{idx}.png')      ## there is no /clr directories? all files are .exr, instead of .png??
+                self.list_depth.append(f'{self.root}/train/depth/{item}/{idx}.png')      ## relationship between item file and idx file? or ,object and rank?
+                self.list_label.append(f'{self.root}/train/exr/{item}/mask/{idx}.png')      ## no mask? label is png?
                 
                 self.list_obj.append(item)
                 self.list_rank.append(idx)
 
-                idx_gt = np.loadtxt(f'{self.root}/train/pose/{item}/{idx}.txt')
-                poses[idx] = {'cam_R_m2c': idx_gt[:3,:3].reshape(9).tolist(), 'cam_t_m2c': np.rad2deg(idx_gt[:3,3].reshape(3)).tolist()}
+                idx_gt = np.loadtxt(f'{self.root}/train/pose/{item}/{idx}.txt')        ## so this is the ground truth RT matrix? if so, what about self.list_label?
+                poses[idx] = {'cam_R_m2c': idx_gt[:3,:3].reshape(9).tolist(), 'cam_t_m2c': np.rad2deg(idx_gt[:3,3].reshape(3)).tolist()}   ## rotation and translation both 3x3?
                 self.list_pcd.append(f'{self.root}/train/pcd/{item}/{idx}.pcd')
-
-            self.meta[item] = poses
+                                                                                        ## relationship between those .png, .pcd?
+            self.meta[item] = poses                                                     ## what is meta?
             
             print("Object {0} buffer loaded".format(item))
 
@@ -95,8 +96,8 @@ class PoseDataset(data.Dataset):
         self.norm = transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
         self.border_list = [-1, 40, 80, 120, 160, 200, 240, 280, 320, 360, 400, 440, 480, 520, 560, 600, 640, 680]
         self.num_pt_mesh_large = 1000
-        self.num_pt_mesh_small = 1000
-        self.symmetry_obj_idx = self.obj_list.copy()
+        self.num_pt_mesh_small = 1000                                                   ## why change it from 500 to 1000?
+        self.symmetry_obj_idx = self.obj_list.copy()                                    ## all symetry?
 
     def __getitem__(self, index):
         img = Image.open(self.list_rgb[index])
@@ -114,13 +115,13 @@ class PoseDataset(data.Dataset):
         # else:
         meta = self.meta[obj][rank]
 
-        mask_depth = ma.getmaskarray(ma.masked_not_equal(depth, 0))
+        mask_depth = ma.getmaskarray(ma.masked_not_equal(depth, 0))                     # mask non zero values as invalid. means we are only caring about the 0 class?
         if self.mode == 'eval':
-            mask_label = ma.getmaskarray(ma.masked_equal(label, np.array(255)))
+            mask_label = ma.getmaskarray(ma.masked_equal(label, np.array(255)))         
         else:
-            mask_label = ma.getmaskarray(ma.masked_equal(label, np.array([255, 255, 255])))[:, :, 0]
+            mask_label = ma.getmaskarray(ma.masked_equal(label, np.array([255, 255, 255])))[:, :, 0]   # why make it an np array? why throw 255 away?
         
-        mask = mask_label * mask_depth
+        mask = mask_label * mask_depth                                                  # why multiply label??
 
         if self.add_noise:
             img = self.trancolor(img)
@@ -137,7 +138,7 @@ class PoseDataset(data.Dataset):
         # current do not have obj_bb info
         rmin, rmax, cmin, cmax = get_bbox(mask_to_bbox(mask_label))
 
-        img_masked = img_masked[:, rmin:rmax, cmin:cmax]
+        img_masked = img_masked[:, rmin:rmax, cmin:cmax] ## crop the image in bounding box
         #p_img = np.transpose(img_masked, (1, 2, 0))
         #scipy.misc.imsave('evaluation_result/{0}_input.png'.format(index), p_img)
 
@@ -150,7 +151,7 @@ class PoseDataset(data.Dataset):
             cc = torch.LongTensor([0])
             return(cc, cc, cc, cc, cc, cc)
 
-        if len(choose) > self.num:
+        if len(choose) > self.num:                                                     #randomly pick self.num points from masked depth image?
             c_mask = np.zeros(len(choose), dtype=int)
             c_mask[:self.num] = 1
             np.random.shuffle(c_mask)
@@ -168,7 +169,7 @@ class PoseDataset(data.Dataset):
         pt0 = (ymap_masked - self.cam_cx) * pt2 / self.cam_fx
         pt1 = (xmap_masked - self.cam_cy) * pt2 / self.cam_fy
         cloud = np.concatenate((pt0, pt1, pt2), axis=1)
-        cloud = cloud / 1000.0
+        cloud = cloud / 1000.0                                                          # why divided by 1000?
 
         if self.add_noise:
             cloud = np.add(cloud, add_t)
