@@ -1,5 +1,6 @@
 datasets/linemod/Linemod_preprocessed
 datasets/ycb/YCB_Video_Dataset
+datasets/airplane/Airplane_data
 *.zip
 *__pycache__
 experiments/logs/*

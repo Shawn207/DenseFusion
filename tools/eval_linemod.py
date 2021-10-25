@@ -60,7 +60,7 @@ diameter = []
 meta_file = open('{0}/models_info.yml'.format(dataset_config_dir), 'r')
 meta = yaml.load(meta_file)
 for obj in objlist:
-    diameter.append(meta[obj]['diameter'] / 1000.0 * 0.1)
+    diameter.append(meta[obj]['diameter'] / 1000.0 * 0.1) # in meter
 print(diameter)
 
 success_count = [0 for i in range(num_objects)]
