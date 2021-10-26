@@ -22,7 +22,7 @@ import torchvision.utils as vutils
 from torch.autograd import Variable
 from datasets.ycb.dataset import PoseDataset as PoseDataset_ycb
 from datasets.linemod.dataset import PoseDataset as PoseDataset_linemod
-from datasets.airplane.dataset import PoseDataset as PoseDataset_airplane
+from datasets.airplane.dataset import PoseDataset as PoseDataset_airplane  ## is that a package? no __init__()
 from lib.network import PoseNet, PoseRefineNet
 from lib.loss import Loss
 from lib.loss_refiner import Loss_refine
@@ -69,7 +69,7 @@ def main():
         opt.num_objects = 20
         opt.num_points = 1000
         opt.outf = 'trained_models/airplane'
-        opt.log_dir = 'experiments/logs/airplane'
+        opt.log_dir = 'experiments/logs/airplane'                                       ## logs and logging?
         opt.repeat_epoch = 10
         
     else:
